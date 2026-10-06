@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TOCAPS 권한 모니터링 대시보드</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'맑은 고딕','Apple SD Gothic Neo',sans-serif;background:#f4f6fa;color:#222;font-size:14px}
+  header{background:#1a3c6e;color:#fff;padding:18px 32px;display:flex;align-items:center;gap:12px}
+  header h1{font-size:20px;font-weight:700}
+  header span{opacity:.7;font-size:13px}
+  .wrap{max-width:1100px;margin:28px auto;padding:0 16px}
+
+  /* upload zone */
+  .upload-zone{background:#fff;border:2px dashed #a8b8d8;border-radius:12px;padding:48px 24px;text-align:center;cursor:pointer;transition:.2s}
+  .upload-zone:hover,.upload-zone.drag{border-color:#1a3c6e;background:#eef2fa}
+  .upload-zone .icon{font-size:48px;margin-bottom:12px}
+  .upload-zone p{color:#555;font-size:15px}
+  .upload-zone small{color:#999;font-size:12px;display:block;margin-top:6px}
+  #fileInput{display:none}
+
+  /* spinner */
+  .spinner{display:none;margin:32px auto;text-align:center}
+  .spinner.show{display:block}
+  .spinner div{width:44px;height:44px;border:5px solid #dde3f0;border-top-color:#1a3c6e;border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* sections */
+  .section{background:#fff;border-radius:10px;padding:24px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+  .section h2{font-size:15px;font-weight:700;color:#1a3c6e;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #dde3f0}
+
+  /* summary cards */
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+  .card{background:#fff;border-radius:10px;padding:18px 16px;box-shadow:0 1px 4px rgba(0,0,0,.08);text-align:center}
+  .card .label{font-size:12px;color:#666;margin-bottom:6px}
+  .card .val{font-size:28px;font-weight:700;color:#1a3c6e}
+  .card .diff{font-size:13px;margin-top:4px}
+  .diff.pos{color:#0070c0}.diff.neg{color:#c00000}.diff.zero{color:#888}
+
+  /* comparison table */
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid #dde3f0;padding:9px 12px;text-align:center}
+  th{background:#dde8f5;font-weight:700;font-size:13px}
+  tr:nth-child(even) td{background:#f8faff}
+  td.left{text-align:left}
+  td .plus{color:#0070c0;font-weight:700}
+  td .minus{color:#c00000;font-weight:700}
+  td .ok{color:#107c10;font-size:11px}
+  td .ng{color:#c00000;font-size:11px}
+
+  /* detail accordion */
+  .cat-block{margin-bottom:12px;border:1px solid #dde3f0;border-radius:8px;overflow:hidden}
+  .cat-header{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:#eef2fa;cursor:pointer;user-select:none}
+  .cat-header:hover{background:#dde8f5}
+  .cat-header .cat-name{font-weight:700;color:#1a3c6e}
+  .cat-header .cat-formula{font-size:13px;color:#555}
+  .cat-header .toggle{font-size:18px;color:#888;transition:.2s}
+  .cat-body{display:none;padding:14px 16px}
+  .cat-body.open{display:block}
+
+  .items-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .item-list h4{font-size:12px;font-weight:700;margin-bottom:8px}
+  .item-list h4.del{color:#c00000}
+  .item-list h4.add{color:#0070c0}
+  .item-row{display:flex;gap:8px;font-size:12px;padding:4px 6px;background:#f9f9f9;border-radius:4px;margin-bottom:4px}
+  .item-row .nm{width:54px;font-weight:600}
+  .item-row .dept{flex:1;color:#444}
+  .item-row .code{color:#888;white-space:nowrap}
+
+  /* report text */
+  .report-box{position:relative}
+  .report-text{font-family:'맑은 고딕',monospace;font-size:13px;line-height:1.7;background:#f8faff;border:1px solid #c8d8ea;border-radius:6px;padding:18px;white-space:pre-wrap;min-height:200px;max-height:520px;overflow-y:auto;outline:none}
+  .copy-btn{position:absolute;top:10px;right:10px;background:#1a3c6e;color:#fff;border:none;border-radius:5px;padding:6px 14px;cursor:pointer;font-size:12px}
+  .copy-btn:hover{background:#15305a}
+  .copy-ok{color:#107c10;font-size:12px;margin-top:6px;display:none}
+
+  .error-box{background:#fff0f0;border:1px solid #f8a4a4;border-radius:8px;padding:18px;color:#c00000;margin-bottom:16px}
+
+  #dashboard{display:none}
+  .period-badge{display:inline-block;background:#1a3c6e;color:#fff;padding:3px 12px;border-radius:20px;font-size:12px;margin-left:10px;vertical-align:middle}
+</style>
+</head>
+<body>
+<header>
+  <h1>TOCAPS 권한 모니터링 대시보드</h1>
+  <span>건설솔루션팀 | 전영준</span>
+</header>
+<div class="wrap">
+
+  <!-- 업로드 영역 -->
+  <div class="section" id="uploadSection">
+    <h2>엑셀 파일 업로드</h2>
+    <label class="upload-zone" id="dropZone" for="fileInput">
+      <div class="icon">📊</div>
+      <p>엑셀 파일을 드래그하거나 클릭하여 선택하세요</p>
+      <small>2026.MM TOCAPS 건설 권한 보유현황 자료.xlsx</small>
+    </label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+
+  <div class="spinner" id="spinner"><div></div><p style="margin-top:12px;color:#555">분석 중입니다...</p></div>
+  <div class="error-box" id="errorBox" style="display:none"></div>
+
+  <!-- 대시보드 -->
+  <div id="dashboard">
+    <div class="cards" id="summaryCards"></div>
+
+    <div class="section">
+      <h2>카테고리별 인원 비교 <span id="periodBadge" class="period-badge"></span></h2>
+      <table id="catTable">
+        <thead>
+          <tr>
+            <th>구분</th>
+            <th>전월</th>
+            <th>당월</th>
+            <th>증감</th>
+            <th>삭제</th>
+            <th>추가</th>
+            <th>검산</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>카테고리별 변동 상세</h2>
+      <div id="catDetails"></div>
+    </div>
+
+    <div class="section">
+      <h2>기안지 보고서 (복사하여 붙여넣기)</h2>
+      <div class="report-box">
+        <button class="copy-btn" onclick="copyReport()">📋 전체 복사</button>
+        <div class="report-text" id="reportText" contenteditable="true"></div>
+        <p class="copy-ok" id="copyOk">✔ 클립보드에 복사되었습니다.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) uploadFile(f);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+});
+
+function uploadFile(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  document.getElementById('spinner').classList.add('show');
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('errorBox').style.display = 'none';
+
+  fetch('/analyze', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('spinner').classList.remove('show');
+      if (data.error) {
+        showError(data.error);
+      } else {
+        renderDashboard(data);
+      }
+    })
+    .catch(err => {
+      document.getElementById('spinner').classList.remove('show');
+      showError('서버 오류: ' + err);
+    });
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorBox');
+  el.textContent = '오류: ' + msg;
+  el.style.display = 'block';
+}
+
+function diffClass(n) {
+  if (n > 0) return 'plus';
+  if (n < 0) return 'minus';
+  return '';
+}
+function diffSign(n) {
+  if (n > 0) return '+' + n;
+  if (n < 0) return '' + n;
+  return '0';
+}
+
+function renderDashboard(d) {
+  // period badge
+  const badge = document.getElementById('periodBadge');
+  badge.textContent = d.period || '분석 결과';
+
+  // summary cards
+  const cats = d.cats;
+  const prevTotal = cats.reduce((s, c) => s + c.prev, 0);
+  const currTotal = cats.reduce((s, c) => s + c.curr, 0);
+  const totalRm = cats.reduce((s, c) => s + c.removed.length, 0);
+  const totalAd = cats.reduce((s, c) => s + c.added.length, 0);
+  const cardData = [
+    { label: '전월 인원', val: prevTotal, diff: null },
+    { label: '당월 인원', val: currTotal, diff: currTotal - prevTotal },
+    { label: '삭제 건수', val: totalRm, diff: null, color: '#c00000' },
+    { label: '추가 건수', val: totalAd, diff: null, color: '#0070c0' },
+  ];
+  document.getElementById('summaryCards').innerHTML = cardData.map(c => `
+    <div class="card">
+      <div class="label">${c.label}</div>
+      <div class="val" style="${c.color ? 'color:'+c.color : ''}">${c.val}</div>
+      ${c.diff !== null ? `<div class="diff ${c.diff > 0 ? 'pos' : c.diff < 0 ? 'neg' : 'zero'}">${diffSign(c.diff)}</div>` : ''}
+    </div>`).join('');
+
+  // cat table
+  const tbody = document.querySelector('#catTable tbody');
+  tbody.innerHTML = cats.map(c => `
+    <tr>
+      <td class="left"><b>${c.cat}</b></td>
+      <td>${c.prev}</td>
+      <td><b>${c.curr}</b></td>
+      <td><span class="${diffClass(c.diff)}">${diffSign(c.diff)}</span></td>
+      <td><span class="minus">${c.removed.length > 0 ? '-' + c.removed.length : '-'}</span></td>
+      <td><span class="plus">${c.added.length > 0 ? '+' + c.added.length : '-'}</span></td>
+      <td>${c.check ? '<span class="ok">✔ 일치</span>' : '<span class="ng">✗ 불일치</span>'}</td>
+    </tr>`).join('') + `
+    <tr style="background:#f0f4ff;font-weight:700">
+      <td class="left">합계</td>
+      <td>${prevTotal}</td>
+      <td>${currTotal}</td>
+      <td><span class="${diffClass(currTotal-prevTotal)}">${diffSign(currTotal-prevTotal)}</span></td>
+      <td><span class="minus">-${totalRm}</span></td>
+      <td><span class="plus">+${totalAd}</span></td>
+      <td></td>
+    </tr>`;
+
+  // detail accordion
+  const detailEl = document.getElementById('catDetails');
+  detailEl.innerHTML = cats.map((c, idx) => `
+    <div class="cat-block">
+      <div class="cat-header" onclick="toggleCat(${idx})">
+        <span class="cat-name">${c.cat}</span>
+        <span class="cat-formula">${c.prev} − ${c.removed.length} + ${c.added.length} = ${c.curr}  ${c.check ? '✔' : '✗'}</span>
+        <span class="toggle" id="toggle${idx}">▼</span>
+      </div>
+      <div class="cat-body" id="body${idx}">
+        <div class="items-grid">
+          <div class="item-list">
+            <h4 class="del">▼ 삭제 / 권한 조정 (${c.removed.length}건)</h4>
+            ${c.removed.length === 0 ? '<p style="color:#888;font-size:12px">없음</p>' :
+              c.removed.map(r => `<div class="item-row">
+                <span class="nm">${r.name}</span>
+                <span class="dept">${r.dept}</span>
+                <span class="code">${r.code}</span>
+              </div>`).join('')}
+          </div>
+          <div class="item-list">
+            <h4 class="add">▲ 신규 추가 (${c.added.length}건)</h4>
+            ${c.added.length === 0 ? '<p style="color:#888;font-size:12px">없음</p>' :
+              c.added.map(r => `<div class="item-row">
+                <span class="nm">${r.name}</span>
+                <span class="dept">${r.dept}</span>
+                <span class="code">${r.code}</span>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  // report text
+  document.getElementById('reportText').textContent = buildReport(d);
+
+  document.getElementById('dashboard').style.display = 'block';
+}
+
+function toggleCat(idx) {
+  const body = document.getElementById('body' + idx);
+  const tog = document.getElementById('toggle' + idx);
+  body.classList.toggle('open');
+  tog.textContent = body.classList.contains('open') ? '▲' : '▼';
+}
+
+function buildReport(d) {
+  const cats = d.cats;
+  const prevTotal = cats.reduce((s, c) => s + c.prev, 0);
+  const currTotal = cats.reduce((s, c) => s + c.curr, 0);
+  const totalRm = cats.reduce((s, c) => s + c.removed.length, 0);
+  const totalAd = cats.reduce((s, c) => s + c.added.length, 0);
+
+  const now = new Date();
+  const yy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+
+  let txt = '';
+  txt += `□ 모니터링 년 월 : ${yy} 년 ${now.getMonth() + 1} 월\n\n`;
+
+  txt += `□ 권한그룹 내역\n`;
+  txt += `┌─────────────────────────────┬──────┬──────┬──────┬──────────────┐\n`;
+  txt += `│ 권한그룹 구분               │전체  │신규  │삭제  │ 비고         │\n`;
+  txt += `├─────────────────────────────┼──────┼──────┼──────┼──────────────┤\n`;
+  txt += `│ 본사                        │  6   │      │      │ *변동없음    │\n`;
+  txt += `│ 건설/산업.환경플랜트(본사)  │  11  │      │      │ *변동없음    │\n`;
+  txt += `│ 건설/산업.환경플랜트(현장)  │   5  │      │      │ *변동없음    │\n`;
+  txt += `│ 회전기사업본부              │   2  │      │      │ *변동없음    │\n`;
+  txt += `└─────────────────────────────┴──────┴──────┴──────┴──────────────┘\n\n`;
+
+  txt += `□ 부여현황 모니터링 결과\n`;
+  txt += `┌──────────┬────────────────────────────┬──────┬──────┐\n`;
+  txt += `│ 시스템   │ 구분                       │ 전월 │ 당월 │\n`;
+  txt += `├──────────┼────────────────────────────┼──────┼──────┤\n`;
+  cats.forEach(c => {
+    const cat = c.cat.padEnd(12);
+    txt += `│  TOCAPS  │ ${cat}              │  ${String(c.prev).padStart(3)}  │  ${String(c.curr).padStart(3)}  │\n`;
+  });
+  txt += `├──────────┼────────────────────────────┼──────┼──────┤\n`;
+  txt += `│  합  계  │                            │  ${String(prevTotal).padStart(3)}  │  ${String(currTotal).padStart(3)}  │\n`;
+  txt += `└──────────┴────────────────────────────┴──────┴──────┘\n\n`;
+
+  txt += `□ 특이사항\n\n`;
+  txt += `*모니터링 기간 : ${yy}.${mm}.01 ~ ${yy}.${mm}.31\n`;
+  txt += `*상세 사항은 첨부의 엑셀 자료에서 확인 가능\n`;
+  txt += `*2025.06 부로 '인사명부'의 '건설' 소속들을 기준으로 재정립\n\n`;
+
+  txt += `- 부여현황 모니터링 결과 내역 상세 -\n\n`;
+
+  cats.forEach((c, idx) => {
+    txt += `${idx + 1}. ${c.cat} : ${c.curr}명 (전월 ${c.prev}명 → 당월 ${c.curr}명, ${c.diff >= 0 ? '+' : ''}${c.diff})\n`;
+    txt += `   계산식: ${c.prev} - ${c.removed.length}(삭제) + ${c.added.length}(추가) = ${c.curr}\n`;
+    if (c.removed.length > 0) {
+      txt += `   [삭제/권한조정 ${c.removed.length}건]\n`;
+      c.removed.forEach(r => {
+        txt += `     - ${r.name} (${r.dept} / ${r.code})\n`;
+      });
+    }
+    if (c.added.length > 0) {
+      txt += `   [신규추가 ${c.added.length}건]\n`;
+      c.added.forEach(r => {
+        txt += `     + ${r.name} (${r.dept} / ${r.code})\n`;
+      });
+    }
+    txt += '\n';
+  });
+
+  txt += `합계 검산: 전월 ${prevTotal}명 - ${totalRm}건 + ${totalAd}건 = ${prevTotal - totalRm + totalAd}명 (실제 당월: ${currTotal}명)\n\n`;
+  txt += `끝.`;
+  return txt;
+}
+
+function copyReport() {
+  const text = document.getElementById('reportText').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const ok = document.getElementById('copyOk');
+    ok.style.display = 'block';
+    setTimeout(() => { ok.style.display = 'none'; }, 2000);
+  });
+}
+</script>
+</body>
+</html>
