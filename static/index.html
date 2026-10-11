@@ -2,367 +2,1451 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TOCAPS 권한 모니터링 대시보드</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TOCAPS 건설 권한 보유현황 모니터링</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'맑은 고딕','Apple SD Gothic Neo',sans-serif;background:#f4f6fa;color:#222;font-size:14px}
-  header{background:#1a3c6e;color:#fff;padding:18px 32px;display:flex;align-items:center;gap:12px}
-  header h1{font-size:20px;font-weight:700}
-  header span{opacity:.7;font-size:13px}
-  .wrap{max-width:1100px;margin:28px auto;padding:0 16px}
+:root{
+  --blue:#1a3c6e;--blue-mid:#4a7abf;--blue-light:#e8f0fb;
+  --green:#2e7d32;--red:#c62828;--red-light:#ffebee;
+  --gray:#f5f7fa;--border:#dde3ec;--text:#1e2532;--muted:#6b7a99;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Malgun Gothic',sans-serif;background:var(--gray);color:var(--text);min-height:100vh}
 
-  /* upload zone */
-  .upload-zone{background:#fff;border:2px dashed #a8b8d8;border-radius:12px;padding:48px 24px;text-align:center;cursor:pointer;transition:.2s}
-  .upload-zone:hover,.upload-zone.drag{border-color:#1a3c6e;background:#eef2fa}
-  .upload-zone .icon{font-size:48px;margin-bottom:12px}
-  .upload-zone p{color:#555;font-size:15px}
-  .upload-zone small{color:#999;font-size:12px;display:block;margin-top:6px}
-  #fileInput{display:none}
+/* ── 헤더 */
+header{background:var(--blue);color:#fff;padding:18px 32px;display:flex;align-items:center;gap:14px}
+header h1{font-size:1.15rem;font-weight:700;letter-spacing:.3px}
+.badge{background:rgba(255,255,255,.18);font-size:.72rem;padding:3px 9px;border-radius:20px}
 
-  /* spinner */
-  .spinner{display:none;margin:32px auto;text-align:center}
-  .spinner.show{display:block}
-  .spinner div{width:44px;height:44px;border:5px solid #dde3f0;border-top-color:#1a3c6e;border-radius:50%;animation:spin .8s linear infinite;display:inline-block}
-  @keyframes spin{to{transform:rotate(360deg)}}
+/* ── 레이아웃 */
+.container{max-width:980px;margin:32px auto;padding:0 24px}
 
-  /* sections */
-  .section{background:#fff;border-radius:10px;padding:24px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
-  .section h2{font-size:15px;font-weight:700;color:#1a3c6e;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #dde3f0}
+/* ── 업로드 카드 */
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:28px 32px;margin-bottom:24px;box-shadow:0 1px 6px rgba(26,60,110,.06)}
+.card-title{font-size:.95rem;font-weight:700;color:var(--blue);margin-bottom:20px;display:flex;align-items:center;gap:8px}
+.upload-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.file-zone{border:2px dashed var(--border);border-radius:8px;padding:20px 16px;text-align:center;cursor:pointer;transition:.15s;position:relative}
+.file-zone:hover,.file-zone.drag{border-color:var(--blue-mid);background:var(--blue-light)}
+.file-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.zone-label{font-size:.78rem;color:var(--muted);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.zone-name{font-size:.87rem;color:var(--blue);font-weight:600;min-height:1.4em}
+.zone-icon{font-size:1.6rem;margin-bottom:6px}
+.btn-run{width:100%;padding:13px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:.95rem;font-weight:700;cursor:pointer;transition:.15s}
+.btn-run:hover{background:#234f8e}
+.btn-run:disabled{background:#9eb0cc;cursor:not-allowed}
 
-  /* summary cards */
-  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
-  .card{background:#fff;border-radius:10px;padding:18px 16px;box-shadow:0 1px 4px rgba(0,0,0,.08);text-align:center}
-  .card .label{font-size:12px;color:#666;margin-bottom:6px}
-  .card .val{font-size:28px;font-weight:700;color:#1a3c6e}
-  .card .diff{font-size:13px;margin-top:4px}
-  .diff.pos{color:#0070c0}.diff.neg{color:#c00000}.diff.zero{color:#888}
+/* ── 스피너 / 에러 */
+.spinner-wrap{display:none;text-align:center;padding:40px;color:var(--muted)}
+.spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--blue-mid);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.err{background:var(--red-light);color:var(--red);border-radius:8px;padding:14px 18px;font-size:.85rem;display:none;margin-bottom:16px}
 
-  /* comparison table */
-  table{width:100%;border-collapse:collapse}
-  th,td{border:1px solid #dde3f0;padding:9px 12px;text-align:center}
-  th{background:#dde8f5;font-weight:700;font-size:13px}
-  tr:nth-child(even) td{background:#f8faff}
-  td.left{text-align:left}
-  td .plus{color:#0070c0;font-weight:700}
-  td .minus{color:#c00000;font-weight:700}
-  td .ok{color:#107c10;font-size:11px}
-  td .ng{color:#c00000;font-size:11px}
+/* ── 결과 영역 */
+#result-area{display:none}
+.stat-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:#fff;border:1px solid var(--border);border-radius:9px;padding:14px 16px;text-align:center}
+.sc-label{font-size:.72rem;color:var(--muted);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-val{font-size:1.5rem;font-weight:800;color:var(--blue)}
+.sc-diff{font-size:.78rem;margin-top:2px}
+.sc-diff.pos{color:var(--green)}.sc-diff.neg{color:var(--red)}.sc-diff.zero{color:var(--muted)}
+.action-bar{display:flex;gap:10px;margin-bottom:16px;align-items:center}
+.action-bar span{font-size:.82rem;color:var(--muted);margin-right:auto}
+.btn-dl{padding:9px 18px;border-radius:7px;border:1.5px solid var(--blue-mid);color:var(--blue);background:#fff;font-size:.83rem;font-weight:600;cursor:pointer;transition:.15s}
+.btn-dl:hover{background:var(--blue-light)}
 
-  /* detail accordion */
-  .cat-block{margin-bottom:12px;border:1px solid #dde3f0;border-radius:8px;overflow:hidden}
-  .cat-header{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;background:#eef2fa;cursor:pointer;user-select:none}
-  .cat-header:hover{background:#dde8f5}
-  .cat-header .cat-name{font-weight:700;color:#1a3c6e}
-  .cat-header .cat-formula{font-size:13px;color:#555}
-  .cat-header .toggle{font-size:18px;color:#888;transition:.2s}
-  .cat-body{display:none;padding:14px 16px}
-  .cat-body.open{display:block}
+/* ════════════════════════════════════════════════════════════════
+   PDF 기안지 문서 스타일
+   ════════════════════════════════════════════════════════════════ */
+.gian-doc{
+  background:#fff;
+  padding:40px 52px 50px;
+  font-family:'맑은 고딕','Malgun Gothic','굴림',sans-serif;
+  font-size:10pt;
+  color:#111;
+  line-height:1.65;
+  box-shadow:0 6px 32px rgba(0,0,0,.16),0 1px 4px rgba(0,0,0,.08);
+  border:1px solid #b2bcc8;
+  border-radius:2px;
+}
 
-  .items-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .item-list h4{font-size:12px;font-weight:700;margin-bottom:8px}
-  .item-list h4.del{color:#c00000}
-  .item-list h4.add{color:#0070c0}
-  .item-row{display:flex;gap:8px;font-size:12px;padding:4px 6px;background:#f9f9f9;border-radius:4px;margin-bottom:4px}
-  .item-row .nm{width:54px;font-weight:600}
-  .item-row .dept{flex:1;color:#444}
-  .item-row .code{color:#888;white-space:nowrap}
+/* 문서 제목 영역 */
+.gian-title-bar{
+  text-align:center;
+  padding-bottom:16px;
+  margin-bottom:22px;
+  border-bottom:3px double var(--blue);
+}
+.gian-main-title{
+  font-size:15pt;
+  font-weight:900;
+  color:var(--blue);
+  letter-spacing:2.5px;
+}
+.gian-sub-line{
+  margin-top:6px;
+  font-size:10.5pt;
+  color:#333;
+  letter-spacing:.5px;
+}
 
-  /* report text */
-  .report-box{position:relative}
-  .report-text{font-family:'맑은 고딕',monospace;font-size:13px;line-height:1.7;background:#f8faff;border:1px solid #c8d8ea;border-radius:6px;padding:18px;white-space:pre-wrap;min-height:200px;max-height:520px;overflow-y:auto;outline:none}
-  .copy-btn{position:absolute;top:10px;right:10px;background:#1a3c6e;color:#fff;border:none;border-radius:5px;padding:6px 14px;cursor:pointer;font-size:12px}
-  .copy-btn:hover{background:#15305a}
-  .copy-ok{color:#107c10;font-size:12px;margin-top:6px;display:none}
+/* 섹션 헤더 */
+.gian-sec-hdr{
+  font-size:10.5pt;
+  font-weight:700;
+  margin:20px 0 7px;
+  padding-left:2px;
+}
+.gian-sec-hdr-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-size:10.5pt;
+  font-weight:700;
+  margin:20px 0 7px;
+}
 
-  .error-box{background:#fff0f0;border:1px solid #f8a4a4;border-radius:8px;padding:18px;color:#c00000;margin-bottom:16px}
+/* 공통 테이블 */
+.gian-tbl{
+  width:100%;
+  border-collapse:collapse;
+  font-size:9.5pt;
+  margin-bottom:4px;
+}
+.gian-tbl th{
+  background:var(--blue);
+  color:#fff;
+  padding:7px 10px;
+  text-align:center;
+  border:1px solid #1e4d91;
+  font-weight:600;
+  font-size:9pt;
+  line-height:1.4;
+}
+.gian-tbl td{
+  border:1px solid #7a8899;
+  padding:5px 10px;
+  vertical-align:middle;
+}
+.gian-tbl tbody tr:nth-child(even) td{background:#f7f9fc}
+.gian-tbl tbody tr:hover td{background:#ecf2fc;transition:background .1s}
 
-  #dashboard{display:none}
-  .period-badge{display:inline-block;background:#1a3c6e;color:#fff;padding:3px 12px;border-radius:20px;font-size:12px;margin-left:10px;vertical-align:middle}
+/* 숫자 셀 (클릭복사) */
+.num-cp{
+  text-align:center !important;
+  font-weight:800;
+  font-size:11pt;
+  color:var(--blue);
+  cursor:pointer;
+  user-select:none;
+  transition:background .1s;
+}
+.num-cp:hover{background:#d4e4ff !important}
+.num-cp.flash{background:#b8f0c8 !important;transition:none}
+/* hover 시 클립보드 아이콘 표시 */
+.num-cp::after{
+  content:' ⧉';
+  font-size:7.5pt;
+  color:#aaa;
+  font-weight:400;
+}
+.num-cp:hover::after{color:var(--blue-mid)}
+
+/* 비고 셀 */
+.bigo-none{color:#888;font-size:8.5pt;font-style:italic}
+.bigo-chg{color:#b84b00;font-size:8.5pt}
+.grp-code{font-size:8.5pt;color:#333}
+
+/* 권한그룹 전체수 셀 (전월→당월) */
+.grp-tot-td{text-align:center;vertical-align:middle;padding:6px 8px}
+.grp-tot-td .num-cp{display:inline-block;font-size:13pt;font-weight:900;color:var(--blue);cursor:pointer;user-select:none;padding:0 2px}
+.grp-tot-td .num-cp:hover{background:#d4e4ff}
+.grp-tot-td .num-cp.flash{background:#b8f0c8!important;transition:none}
+.prev-grp-lbl{font-size:7.5pt;color:#888;font-style:italic;display:block;margin-top:2px}
+
+/* 권한그룹 신규/삭제 셀 */
+.grp-chg-td{text-align:center;vertical-align:top;padding:6px 8px}
+.grp-chg-cnt{display:inline-block;font-size:11pt;font-weight:800;color:var(--blue);cursor:pointer;user-select:none}
+.grp-chg-cnt:hover{background:#d4e4ff}
+.grp-chg-cnt.flash{background:#b8f0c8!important;transition:none}
+.grp-chg-codes{font-size:7.5pt;color:#444;margin-top:3px;text-align:left;line-height:1.8}
+.grp-name-lbl{font-size:7pt;color:#888}
+.grp-chg-none{color:#bbb;font-size:9.5pt}
+
+/* 복사됨 표시 */
+.copied-label{color:#27ae60;font-size:9pt;font-weight:700}
+
+/* 부서분류 설정 모달 */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal-box{background:#fff;border-radius:12px;width:min(720px,95vw);max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.22)}
+.modal-hdr{padding:18px 24px 14px;border-bottom:1px solid #e5eaf2;display:flex;align-items:center;justify-content:space-between}
+.modal-hdr h3{font-size:.95rem;font-weight:700;color:var(--blue);margin:0}
+.modal-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#888;padding:2px 6px}
+.modal-close:hover{color:#333}
+.modal-body{padding:16px 24px;overflow-y:auto;flex:1}
+.modal-footer{padding:14px 24px;border-top:1px solid #e5eaf2;display:flex;gap:10px;justify-content:flex-end}
+.dmap-tbl{width:100%;border-collapse:collapse;font-size:.83rem}
+.dmap-tbl th{background:#f4f7fc;padding:7px 10px;text-align:left;border-bottom:2px solid #d0dcee;color:#1e4d91;font-weight:600}
+.dmap-tbl td{padding:5px 8px;border-bottom:1px solid #eef0f5;vertical-align:middle}
+.dmap-tbl tr:hover td{background:#f8faff}
+.dmap-dept{width:100%;border:1px solid #cdd6e8;border-radius:5px;padding:4px 7px;font-size:.82rem}
+.dmap-sel{border:1px solid #cdd6e8;border-radius:5px;padding:4px 7px;font-size:.82rem;background:#fff;min-width:120px}
+.dmap-del{background:none;border:none;color:#c0392b;cursor:pointer;font-size:.9rem;padding:2px 6px}
+.dmap-del:hover{color:#e74c3c}
+.dmap-add-row td{padding-top:10px}
+.btn-add-dept{padding:5px 12px;border:1.5px dashed #7a9ecf;border-radius:6px;background:#f4f7fc;color:var(--blue);font-size:.8rem;cursor:pointer}
+.btn-add-dept:hover{background:#dce7f7}
+.btn-save-map{padding:8px 20px;border-radius:7px;border:none;background:var(--blue);color:#fff;font-size:.83rem;font-weight:600;cursor:pointer}
+.btn-save-map:hover{background:#163d78}
+.btn-cancel-map{padding:8px 16px;border-radius:7px;border:1.5px solid #cdd6e8;background:#fff;color:#555;font-size:.83rem;cursor:pointer}
+.map-note{font-size:.75rem;color:#888;margin-bottom:10px}
+.cat-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:600}
+.cat-badge.본사{background:#e8f4fd;color:#1565c0}
+.cat-badge.건설본사{background:#fff3e0;color:#e65100}
+.cat-badge.건설현장{background:#fce4ec;color:#c62828}
+.cat-badge.회전기{background:#f3e5f5;color:#6a1b9a}
+.btn-cfg{padding:7px 13px;border-radius:7px;border:1.5px solid #c8d8ea;color:#555;background:#fff;font-size:.8rem;cursor:pointer;transition:.15s}
+.btn-cfg:hover{background:#f0f4ff;border-color:var(--blue-mid)}
+
+/* ── 인원명부 알림 */
+.dir-alert{background:#fff8e1;border:1.5px solid #f0c040;border-left:5px solid #f39c12;border-radius:8px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px}
+.dir-alert-icon{font-size:1.4rem;flex-shrink:0;margin-top:1px}
+.dir-alert-body{flex:1}
+.dir-alert-title{font-weight:700;font-size:.88rem;color:#7d5500;margin-bottom:6px}
+.dir-alert-list{font-size:.82rem;color:#555;line-height:1.75;margin-bottom:8px}
+.btn-dir-alert{padding:5px 14px;background:#f39c12;color:#fff;border:none;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer}
+.btn-dir-alert:hover{background:#e67e22}
+
+/* ── 인원명부 모달 테이블 */
+.dir-tbl{width:100%;border-collapse:collapse;font-size:.82rem}
+.dir-tbl th{background:#f4f7fc;padding:6px 8px;text-align:center;border-bottom:2px solid #d0dcee;color:#1e4d91;font-weight:600;white-space:nowrap}
+.dir-tbl td{padding:4px 5px;border-bottom:1px solid #eef0f5;vertical-align:middle}
+.dir-tbl tr:hover td{background:#f8faff}
+.dir-tbl tr.new-entry td{background:#fff8e1}
+.dir-inp{width:100%;border:1px solid #cdd6e8;border-radius:4px;padding:3px 6px;font-size:.81rem;font-family:inherit}
+.dir-inp:focus{outline:none;border-color:var(--blue-mid)}
+.dir-sel{width:100%;border:1px solid #cdd6e8;border-radius:4px;padding:3px 4px;font-size:.81rem;background:#fff}
+.dir-del{background:none;border:none;color:#c0392b;cursor:pointer;font-size:.88rem;padding:2px 6px}
+.dir-del:hover{color:#e74c3c}
+.dir-add-bar{display:flex;gap:8px;margin-top:10px;justify-content:flex-start}
+.btn-add-dir{padding:5px 12px;border:1.5px dashed #7a9ecf;border-radius:6px;background:#f4f7fc;color:var(--blue);font-size:.8rem;cursor:pointer}
+.dir-filter-bar{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.dir-filter-btn{padding:4px 12px;border:1.5px solid #cdd6e8;border-radius:20px;background:#fff;color:#555;font-size:.78rem;cursor:pointer;transition:.12s}
+.dir-filter-btn:hover{border-color:var(--blue-mid);color:var(--blue)}
+.dir-filter-btn.active{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.dir-filter-cnt{font-size:.72rem;opacity:.75;margin-left:2px}
+.btn-add-dir:hover{background:#dce7f7}
+
+/* 특이사항 */
+.gian-special-wrap{
+  background:#fffef5;
+  border:1px solid #c8c8b0;
+  border-left:4px solid var(--blue);
+}
+.gian-special{
+  display:block;
+  width:100%;
+  box-sizing:border-box;
+  background:transparent;
+  border:none;
+  outline:none;
+  padding:13px 18px;
+  font-size:9.5pt;
+  font-family:inherit;
+  line-height:2.1;
+  resize:vertical;
+  min-height:180px;
+}
+.gian-detail-label{
+  text-align:center;
+  font-size:9.5pt;
+  font-weight:600;
+  color:#1e4d91;
+  padding:9px 0 6px;
+  letter-spacing:.03em;
+}
+.btn-copy-spc{
+  padding:5px 14px;
+  background:var(--blue);
+  color:#fff;
+  border:none;
+  border-radius:4px;
+  font-size:8.5pt;
+  cursor:pointer;
+  font-family:inherit;
+  white-space:nowrap;
+  letter-spacing:.3px;
+}
+.btn-copy-spc:hover{background:#2b5499}
+
+/* 상세내역 구분선 */
+.gian-detail-div{
+  text-align:center;
+  font-size:9.5pt;
+  font-weight:700;
+  color:#333;
+  margin:24px 0 14px;
+  padding:6px 0;
+  border-top:1.5px solid #aaa;
+  border-bottom:1.5px solid #aaa;
+  background:#f8f8f8;
+}
+
+/* 카테고리 헤더 */
+.gian-cat-hdr{
+  font-weight:700;
+  font-size:11pt;
+  margin:16px 0 6px;
+  padding:4px 0 4px 10px;
+  border-left:5px solid var(--blue);
+  background:#f4f8ff;
+}
+
+/* 변동 목록 */
+.gian-chg-group{margin:5px 0 10px 18px}
+.gian-chg-lbl{
+  font-weight:700;
+  font-size:9.5pt;
+  color:#222;
+  margin-bottom:3px;
+}
+.gian-del{color:#990000;font-size:9.5pt;line-height:1.9;padding-left:4px}
+.gian-add{color:#005c00;font-size:9.5pt;line-height:1.9;padding-left:4px}
+.gian-no-chg{color:#888;font-style:italic;font-size:9.5pt;margin-left:18px}
+
+/* 카테고리 블록 */
+.gian-cat-block{margin:14px 0 6px;border:1px solid #dde4ef;border-radius:4px;overflow:hidden}
+.gian-cat-block.gian-cat-misc{border-color:#b5d4b5}
+
+/* 카테고리 헤더 input (이전 gian-cat-hdr 스타일) */
+.gian-cat-hdr-input{
+  display:block;width:100%;box-sizing:border-box;
+  background:#f4f8ff;border:none;border-bottom:1px solid #dde4ef;
+  padding:6px 10px 6px 14px;
+  font-size:11pt;font-weight:700;font-family:inherit;color:var(--blue);
+  outline:none;
+  border-left:5px solid var(--blue);
+}
+.gian-cat-hdr-input:focus{background:#eef3fb}
+.gian-cat-hdr-misc{background:#f0f7f0;border-bottom-color:#b5d4b5;border-left-color:#4caf50;color:#2e7d32}
+.gian-cat-hdr-misc:focus{background:#e8f5e9}
+
+/* 이월 메모 영역 */
+.gian-cat-memo-wrap{
+  border-bottom:1px dashed #c5d8b5;
+  background:#f5fbf3;
+  padding:5px 14px 7px;
+}
+.gian-cat-memo-lbl{
+  font-size:7.5pt;color:#388e3c;font-weight:700;margin-bottom:2px;
+  letter-spacing:.02em;
+}
+.gian-cat-memo{
+  display:block;width:100%;box-sizing:border-box;
+  background:transparent;border:none;outline:none;
+  font-size:9pt;font-family:inherit;line-height:1.75;
+  resize:vertical;min-height:34px;
+}
+
+/* 카테고리 본문 textarea */
+.gian-cat-textarea{
+  display:block;width:100%;box-sizing:border-box;
+  background:#fafcff;border:none;
+  padding:10px 14px;
+  font-size:9.5pt;font-family:inherit;line-height:1.85;
+  resize:vertical;outline:none;
+}
+.gian-cat-textarea:focus{background:#fff}
+.gian-cat-misc .gian-cat-textarea{background:#f9fcf9}
+.gian-cat-misc .gian-cat-textarea:focus{background:#fff}
+
+/* 끝. */
+.gian-end{
+  text-align:right;
+  font-weight:900;
+  font-size:12pt;
+  margin-top:26px;
+  padding-top:10px;
+  border-top:2.5px solid var(--blue);
+  color:var(--blue);
+}
+
+/* 특이사항 저장 버튼 */
+.btn-save-spc{
+  padding:6px 14px;
+  background:#fff;
+  color:var(--blue);
+  border:1px solid var(--blue);
+  border-radius:6px;
+  font-size:.8rem;
+  cursor:pointer;
+  white-space:nowrap;
+  font-weight:600;
+}
+.btn-save-spc:hover{background:#eef3fb}
+.btn-save-spc.ok{background:#27ae60;color:#fff;border-color:#27ae60}
+
+/* 전체복사 버튼 */
+.btn-copy-all{
+  padding:6px 16px;
+  background:var(--blue);
+  color:#fff;
+  border:none;
+  border-radius:5px;
+  font-size:8.5pt;
+  cursor:pointer;
+  font-family:inherit;
+  white-space:nowrap;
+  letter-spacing:.3px;
+  font-weight:600;
+}
+.btn-copy-all:hover{background:#2b5499}
+.btn-copy-all.ok{background:#27ae60}
+
+/* ── 히스토리 배지 */
+.hist-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:#f0faf2;border:1.5px solid #81c784;border-radius:6px;
+  padding:4px 10px;font-size:.78rem;color:#2e7d32;margin-bottom:8px;
+}
+.hist-badge b{font-weight:700}
+.hist-badge .override-link{color:#666;font-size:.73rem;text-decoration:underline;cursor:pointer;margin-left:4px}
+
+/* ── 히스토리 패널 */
+.hist-panel{margin-top:0;margin-bottom:24px}
+.hist-panel-title{font-size:.9rem;font-weight:700;color:var(--blue);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.hist-tbl{width:100%;border-collapse:collapse;font-size:.82rem}
+.hist-tbl th{background:var(--blue);color:#fff;padding:7px 10px;text-align:center;border:1px solid #1e4d91;font-weight:600;font-size:.78rem;white-space:nowrap}
+.hist-tbl td{border:1px solid var(--border);padding:6px 10px;text-align:center;vertical-align:middle}
+.hist-tbl tbody tr:nth-child(even) td{background:#f7f9fc}
+.hist-tbl tbody tr{cursor:pointer}
+.hist-tbl tbody tr:hover td{background:var(--blue-light)}
+.hist-tbl .ym-cell{font-weight:700;color:var(--blue);white-space:nowrap}
+.hist-tbl .total-cell{font-weight:800;font-size:.9rem}
+.hist-tbl .cat-cell{line-height:1.4}
+.hist-tbl .cat-grp{font-size:.7rem;color:#888;display:block}
+
+/* 비고 셀 클릭복사 */
+.bigo-cp{cursor:pointer;transition:background .1s}
+.bigo-cp:hover{background:#f0f4ff !important}
+.bigo-cp.flash{background:#b8f0c8 !important;transition:none}
+
+/* 수식 도표 */
+.formula-tbl td,.formula-tbl th{padding:8px 6px;border-left:none;border-right:none}
+.formula-tbl thead th{border-left:none;border-right:none;border-bottom:1px solid #1e4d91}
+.fml-num{text-align:center;font-weight:800;color:var(--blue)}
+.fml-op{text-align:center;font-weight:700;color:#888;padding:0 2px}
+.fml-del{color:#c62828}
+.fml-add{color:#2e7d32}
+.fml-result{color:var(--blue)}
+
+/* 비교 기간 표시 */
+.compare-badge{font-size:.78rem;color:var(--muted);background:#f0f4ff;border:1px solid #c5d2f0;border-radius:5px;padding:3px 9px;white-space:nowrap}
+.compare-badge b{color:var(--blue)}
+
+/* ── 페이지 로드 애니메이션 */
+@keyframes hdrFadeDown{from{opacity:0;transform:translateY(-18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes cardSlideUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+@keyframes logoSpin{0%{transform:rotate(-12deg) scale(.85)}60%{transform:rotate(4deg) scale(1.05)}100%{transform:rotate(0deg) scale(1)}}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+@keyframes pulseRing{0%,100%{box-shadow:0 0 0 0 rgba(74,122,191,.35)}50%{box-shadow:0 0 0 7px rgba(74,122,191,0)}}
+
+header{animation:hdrFadeDown .45s cubic-bezier(.22,1,.36,1) both}
+.header-logo-wrap{animation:logoSpin .55s cubic-bezier(.22,1,.36,1) .08s both}
+.container>.card:nth-child(1){animation:cardSlideUp .4s cubic-bezier(.22,1,.36,1) .12s both}
+.container>#hist-panel{animation:cardSlideUp .4s cubic-bezier(.22,1,.36,1) .2s both}
+.btn-run:not(:disabled){animation:pulseRing 2.2s ease-in-out infinite}
+
+/* ── 스플래시 오버레이 (부팅 GIF 버전) */
+#splash{
+  position:fixed;inset:0;z-index:9999;
+  background:#060606;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:pointer;
+  transition:opacity .25s ease,visibility .25s ease;
+}
+#splash.hide{opacity:0;visibility:hidden;pointer-events:none}
+#splash-gif{
+  display:block;
+  max-width:min(760px,92vw);
+  max-height:min(480px,82vh);
+  width:auto;height:auto;
+}
+.splash-skip{
+  position:absolute;bottom:22px;
+  color:rgba(255,255,255,.28);font-size:.7rem;letter-spacing:2px;
+}
+
+/* ── 서버 오류 배너 */
+.server-err{
+  background:#fff3cd;border:1.5px solid #ffc107;border-radius:8px;
+  padding:12px 18px;font-size:.83rem;color:#7d5500;
+  display:flex;align-items:center;gap:10px;margin-bottom:14px;
+}
+.server-err b{font-weight:700}
+.btn-retry{padding:5px 14px;background:#f39c12;color:#fff;border:none;border-radius:5px;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-retry:hover{background:#e67e22}
 </style>
 </head>
 <body>
+
+<!-- 스플래시 오버레이 -->
+<div id="splash" onclick="this.classList.add('hide')">
+  <img id="splash-gif" src="/static/TONGYANG_boot.gif" alt="">
+  <div class="splash-skip">클릭하여 건너뛰기</div>
+</div>
+
 <header>
-  <h1>TOCAPS 권한 모니터링 대시보드</h1>
-  <span>건설솔루션팀 | 전영준</span>
-</header>
-<div class="wrap">
-
-  <!-- 업로드 영역 -->
-  <div class="section" id="uploadSection">
-    <h2>엑셀 파일 업로드</h2>
-    <label class="upload-zone" id="dropZone" for="fileInput">
-      <div class="icon">📊</div>
-      <p>엑셀 파일을 드래그하거나 클릭하여 선택하세요</p>
-      <small>2026.MM TOCAPS 건설 권한 보유현황 자료.xlsx</small>
-    </label>
-    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  <div class="header-logo-wrap">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/>
+    </svg>
   </div>
+  <h1><span style="display:block;font-size:.62rem;font-weight:400;opacity:.7;letter-spacing:.5px;margin-bottom:2px">일하기 싫어서 만든</span>TOCAPS 건설 권한 보유현황 모니터링</h1>
+  <span class="badge">건설본부 전용</span>
+  <span class="badge" style="margin-left:auto;background:rgba(255,255,255,.12);font-size:.7rem">v2</span>
+</header>
 
-  <div class="spinner" id="spinner"><div></div><p style="margin-top:12px;color:#555">분석 중입니다...</p></div>
-  <div class="error-box" id="errorBox" style="display:none"></div>
+<div class="container">
 
-  <!-- 대시보드 -->
-  <div id="dashboard">
-    <div class="cards" id="summaryCards"></div>
-
-    <div class="section">
-      <h2>카테고리별 인원 비교 <span id="periodBadge" class="period-badge"></span></h2>
-      <table id="catTable">
-        <thead>
-          <tr>
-            <th>구분</th>
-            <th>전월</th>
-            <th>당월</th>
-            <th>증감</th>
-            <th>삭제</th>
-            <th>추가</th>
-            <th>검산</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+  <!-- 업로드 카드 -->
+  <div class="card">
+    <div class="card-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      원본 파일 업로드 후 기안지 작성
+      <button class="btn-cfg" onclick="openDirModal()" title="인원 명부 설정" style="margin-left:auto">👥 인원명부 설정</button>
+      <button class="btn-cfg" onclick="openDeptMapModal()" title="부서 분류 설정">⚙ 부서 분류 설정</button>
     </div>
-
-    <div class="section">
-      <h2>카테고리별 변동 상세</h2>
-      <div id="catDetails"></div>
-    </div>
-
-    <div class="section">
-      <h2>기안지 보고서 (복사하여 붙여넣기)</h2>
-      <div class="report-box">
-        <button class="copy-btn" onclick="copyReport()">📋 전체 복사</button>
-        <div class="report-text" id="reportText" contenteditable="true"></div>
-        <p class="copy-ok" id="copyOk">✔ 클립보드에 복사되었습니다.</p>
+    <div class="upload-row">
+      <div class="file-zone" id="zone-curr" ondragover="onDrag(event,this)" ondragleave="offDrag(this)" ondrop="onDrop(event,'curr')">
+        <input type="file" accept=".xlsx" id="file-curr" onchange="onFile('curr')">
+        <div class="zone-icon">📄</div>
+        <div class="zone-label">당월 원본</div>
+        <div class="zone-name" id="name-curr">파일 선택 또는 드래그</div>
+      </div>
+      <div class="file-zone" id="zone-prev" ondragover="onDrag(event,this)" ondragleave="offDrag(this)" ondrop="onDrop(event,'prev')">
+        <input type="file" accept=".xlsx" id="file-prev" onchange="onFile('prev')">
+        <div class="zone-icon" id="icon-prev">📋</div>
+        <div class="zone-label" id="label-prev">전월 원본</div>
+        <div class="zone-name" id="name-prev">파일 선택 또는 드래그</div>
       </div>
     </div>
+    <!-- 히스토리 자동 로드 배지 -->
+    <div id="hist-badge-wrap" style="display:none;margin-bottom:10px">
+      <div class="hist-badge">
+        <span>✅ 전월 자동 로드 ·</span>
+        <b id="hist-badge-ym"></b>
+        <span id="hist-badge-cnt" style="color:#555"></span>
+        <span class="override-link" onclick="overridePrev()">직접 업로드</span>
+      </div>
+    </div>
+    <button class="btn-run" id="btn-run" onclick="runAnalysis()" disabled>기안지 작성</button>
+  </div>
+
+  <!-- 히스토리 패널 (업로드 카드 바로 아래) -->
+  <div id="hist-panel" class="card hist-panel" style="display:none">
+    <div class="hist-panel-title">
+      🗂 분석 히스토리
+      <span style="font-weight:400;font-size:.75rem;color:#aaa">(분석 실행 시 자동 저장)</span>
+    </div>
+    <div id="hist-list"></div>
+  </div>
+
+  <div class="err" id="err-box"></div>
+  <div class="spinner-wrap" id="spinner"><div class="spinner"></div><div>분석 중...</div></div>
+
+  <div id="result-area">
+    <div id="dir-alert-wrap"></div>
+    <div class="stat-bar" id="stat-bar"></div>
+    <div class="action-bar">
+      <span id="result-summary"></span>
+      <span id="compare-badge-wrap"></span>
+      <button class="btn-dl" id="btn-save-report" style="display:none" onclick="saveReport()">💾 저장</button>
+      <button class="btn-dl" id="btn-download" onclick="location.href='/download-combined'">📥 종합파일 다운로드</button>
+    </div>
+    <div id="report-area"></div>
   </div>
 
 </div>
 
 <script>
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
+const files = {curr:null, prev:null};
+let latestHist = null;
+let prevOverride = false;
+let _lastResult = null;
+let _lastSpecial = '';
+let _missingFromDir = [];
 
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('drag');
-  const f = e.dataTransfer.files[0];
-  if (f) uploadFile(f);
+
+// ── 스플래시 숨기기 (로드 완료 시)
+window.addEventListener('load', ()=>{
+  setTimeout(()=>{
+    const sp = document.getElementById('splash');
+    if(sp) sp.classList.add('hide');
+  }, 9100);
 });
-fileInput.addEventListener('change', () => {
-  if (fileInput.files[0]) uploadFile(fileInput.files[0]);
-});
 
-function uploadFile(file) {
-  const fd = new FormData();
-  fd.append('file', file);
-  document.getElementById('spinner').classList.add('show');
-  document.getElementById('dashboard').style.display = 'none';
-  document.getElementById('errorBox').style.display = 'none';
+// ── 페이지 로드 시 히스토리 확인
+(async function initHistory(){
+  try{
+    const r = await fetch('/history');
+    const d = await r.json();
+    latestHist = d.latest;
+    renderHistPanel(d.history);
+    if(latestHist) applyHistBadge(latestHist);
+  }catch(e){}
+})();
 
-  fetch('/analyze', { method: 'POST', body: fd })
-    .then(r => r.json())
-    .then(data => {
-      document.getElementById('spinner').classList.remove('show');
-      if (data.error) {
-        showError(data.error);
+function applyHistBadge(h){
+  document.getElementById('hist-badge-ym').textContent  = h.display;
+  document.getElementById('hist-badge-cnt').textContent = `(${h.curr_total}개)`;
+  document.getElementById('hist-badge-wrap').style.display = '';
+  // 전월 존 안내 텍스트 변경 (클릭/드래그는 여전히 가능)
+  document.getElementById('name-prev').textContent = '파일 올리면 히스토리 대신 사용';
+  document.getElementById('icon-prev').textContent  = '📋';
+  check();
+}
+
+function overridePrev(){
+  // "직접 업로드" 링크 클릭 시 → 파일 선택 대화상자 열기
+  document.getElementById('file-prev').click();
+}
+
+function renderHistPanel(histList){
+  if(!histList || !histList.length) return;
+  document.getElementById('hist-panel').style.display = '';
+
+  const CAT_ORDER = ['본사','건설(본사)','건설(현장)','회전기사업본부'];
+  const CAT_SHORT = {
+    '본사':'본사',
+    '건설(본사)':'건설(본사)',
+    '건설(현장)':'건설(현장)',
+    '회전기사업본부':'회전기',
+  };
+
+  let html = `<table class="hist-tbl">
+    <thead><tr>
+      <th>기준월</th>
+      <th>총건수</th>`;
+  CAT_ORDER.forEach(c => { html += `<th>${CAT_SHORT[c]||c}</th>`; });
+  html += `<th>저장일</th></tr></thead><tbody>`;
+
+  histList.forEach(h => {
+    const catMap = {};
+    (h.cats||[]).forEach(c => catMap[c.cat] = c);
+
+    const savedIcon = h.has_full_result ? ' <span title="저장된 분석결과 있음" style="color:#27ae60;font-size:.8rem">💾</span>' : '';
+    html += `<tr onclick="loadHistResult('${h.ym}')" title="${h.display} 리포트 보기">
+      <td class="ym-cell">${h.display}${savedIcon}</td>
+      <td class="total-cell">${h.curr_total}개</td>`;
+
+    CAT_ORDER.forEach(cat => {
+      const c = catMap[cat];
+      if(c){
+        html += `<td class="cat-cell">${c.curr}개<span class="cat-grp">그룹 ${c.grp_cnt}개</span></td>`;
       } else {
-        renderDashboard(data);
+        html += `<td>─</td>`;
       }
-    })
-    .catch(err => {
-      document.getElementById('spinner').classList.remove('show');
-      showError('서버 오류: ' + err);
     });
-}
 
-function showError(msg) {
-  const el = document.getElementById('errorBox');
-  el.textContent = '오류: ' + msg;
-  el.style.display = 'block';
-}
-
-function diffClass(n) {
-  if (n > 0) return 'plus';
-  if (n < 0) return 'minus';
-  return '';
-}
-function diffSign(n) {
-  if (n > 0) return '+' + n;
-  if (n < 0) return '' + n;
-  return '0';
-}
-
-function renderDashboard(d) {
-  // period badge
-  const badge = document.getElementById('periodBadge');
-  badge.textContent = d.period || '분석 결과';
-
-  // summary cards
-  const cats = d.cats;
-  const prevTotal = cats.reduce((s, c) => s + c.prev, 0);
-  const currTotal = cats.reduce((s, c) => s + c.curr, 0);
-  const totalRm = cats.reduce((s, c) => s + c.removed.length, 0);
-  const totalAd = cats.reduce((s, c) => s + c.added.length, 0);
-  const cardData = [
-    { label: '전월 인원', val: prevTotal, diff: null },
-    { label: '당월 인원', val: currTotal, diff: currTotal - prevTotal },
-    { label: '삭제 건수', val: totalRm, diff: null, color: '#c00000' },
-    { label: '추가 건수', val: totalAd, diff: null, color: '#0070c0' },
-  ];
-  document.getElementById('summaryCards').innerHTML = cardData.map(c => `
-    <div class="card">
-      <div class="label">${c.label}</div>
-      <div class="val" style="${c.color ? 'color:'+c.color : ''}">${c.val}</div>
-      ${c.diff !== null ? `<div class="diff ${c.diff > 0 ? 'pos' : c.diff < 0 ? 'neg' : 'zero'}">${diffSign(c.diff)}</div>` : ''}
-    </div>`).join('');
-
-  // cat table
-  const tbody = document.querySelector('#catTable tbody');
-  tbody.innerHTML = cats.map(c => `
-    <tr>
-      <td class="left"><b>${c.cat}</b></td>
-      <td>${c.prev}</td>
-      <td><b>${c.curr}</b></td>
-      <td><span class="${diffClass(c.diff)}">${diffSign(c.diff)}</span></td>
-      <td><span class="minus">${c.removed.length > 0 ? '-' + c.removed.length : '-'}</span></td>
-      <td><span class="plus">${c.added.length > 0 ? '+' + c.added.length : '-'}</span></td>
-      <td>${c.check ? '<span class="ok">✔ 일치</span>' : '<span class="ng">✗ 불일치</span>'}</td>
-    </tr>`).join('') + `
-    <tr style="background:#f0f4ff;font-weight:700">
-      <td class="left">합계</td>
-      <td>${prevTotal}</td>
-      <td>${currTotal}</td>
-      <td><span class="${diffClass(currTotal-prevTotal)}">${diffSign(currTotal-prevTotal)}</span></td>
-      <td><span class="minus">-${totalRm}</span></td>
-      <td><span class="plus">+${totalAd}</span></td>
-      <td></td>
+    html += `<td style="font-size:.72rem;color:#aaa">${(h.saved_at||'').slice(0,10)}</td>
     </tr>`;
-
-  // detail accordion
-  const detailEl = document.getElementById('catDetails');
-  detailEl.innerHTML = cats.map((c, idx) => `
-    <div class="cat-block">
-      <div class="cat-header" onclick="toggleCat(${idx})">
-        <span class="cat-name">${c.cat}</span>
-        <span class="cat-formula">${c.prev} − ${c.removed.length} + ${c.added.length} = ${c.curr}  ${c.check ? '✔' : '✗'}</span>
-        <span class="toggle" id="toggle${idx}">▼</span>
-      </div>
-      <div class="cat-body" id="body${idx}">
-        <div class="items-grid">
-          <div class="item-list">
-            <h4 class="del">▼ 삭제 / 권한 조정 (${c.removed.length}건)</h4>
-            ${c.removed.length === 0 ? '<p style="color:#888;font-size:12px">없음</p>' :
-              c.removed.map(r => `<div class="item-row">
-                <span class="nm">${r.name}</span>
-                <span class="dept">${r.dept}</span>
-                <span class="code">${r.code}</span>
-              </div>`).join('')}
-          </div>
-          <div class="item-list">
-            <h4 class="add">▲ 신규 추가 (${c.added.length}건)</h4>
-            ${c.added.length === 0 ? '<p style="color:#888;font-size:12px">없음</p>' :
-              c.added.map(r => `<div class="item-row">
-                <span class="nm">${r.name}</span>
-                <span class="dept">${r.dept}</span>
-                <span class="code">${r.code}</span>
-              </div>`).join('')}
-          </div>
-        </div>
-      </div>
-    </div>`).join('');
-
-  // report text
-  document.getElementById('reportText').textContent = buildReport(d);
-
-  document.getElementById('dashboard').style.display = 'block';
-}
-
-function toggleCat(idx) {
-  const body = document.getElementById('body' + idx);
-  const tog = document.getElementById('toggle' + idx);
-  body.classList.toggle('open');
-  tog.textContent = body.classList.contains('open') ? '▲' : '▼';
-}
-
-function buildReport(d) {
-  const cats = d.cats;
-  const prevTotal = cats.reduce((s, c) => s + c.prev, 0);
-  const currTotal = cats.reduce((s, c) => s + c.curr, 0);
-  const totalRm = cats.reduce((s, c) => s + c.removed.length, 0);
-  const totalAd = cats.reduce((s, c) => s + c.added.length, 0);
-
-  const now = new Date();
-  const yy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-
-  let txt = '';
-  txt += `□ 모니터링 년 월 : ${yy} 년 ${now.getMonth() + 1} 월\n\n`;
-
-  txt += `□ 권한그룹 내역\n`;
-  txt += `┌─────────────────────────────┬──────┬──────┬──────┬──────────────┐\n`;
-  txt += `│ 권한그룹 구분               │전체  │신규  │삭제  │ 비고         │\n`;
-  txt += `├─────────────────────────────┼──────┼──────┼──────┼──────────────┤\n`;
-  txt += `│ 본사                        │  6   │      │      │ *변동없음    │\n`;
-  txt += `│ 건설/산업.환경플랜트(본사)  │  11  │      │      │ *변동없음    │\n`;
-  txt += `│ 건설/산업.환경플랜트(현장)  │   5  │      │      │ *변동없음    │\n`;
-  txt += `│ 회전기사업본부              │   2  │      │      │ *변동없음    │\n`;
-  txt += `└─────────────────────────────┴──────┴──────┴──────┴──────────────┘\n\n`;
-
-  txt += `□ 부여현황 모니터링 결과\n`;
-  txt += `┌──────────┬────────────────────────────┬──────┬──────┐\n`;
-  txt += `│ 시스템   │ 구분                       │ 전월 │ 당월 │\n`;
-  txt += `├──────────┼────────────────────────────┼──────┼──────┤\n`;
-  cats.forEach(c => {
-    const cat = c.cat.padEnd(12);
-    txt += `│  TOCAPS  │ ${cat}              │  ${String(c.prev).padStart(3)}  │  ${String(c.curr).padStart(3)}  │\n`;
   });
-  txt += `├──────────┼────────────────────────────┼──────┼──────┤\n`;
-  txt += `│  합  계  │                            │  ${String(prevTotal).padStart(3)}  │  ${String(currTotal).padStart(3)}  │\n`;
-  txt += `└──────────┴────────────────────────────┴──────┴──────┘\n\n`;
 
-  txt += `□ 특이사항\n\n`;
-  txt += `*모니터링 기간 : ${yy}.${mm}.01 ~ ${yy}.${mm}.31\n`;
-  txt += `*상세 사항은 첨부의 엑셀 자료에서 확인 가능\n`;
-  txt += `*2025.06 부로 '인사명부'의 '건설' 소속들을 기준으로 재정립\n\n`;
+  html += `</tbody></table>`;
+  document.getElementById('hist-list').innerHTML = html;
+}
 
-  txt += `- 부여현황 모니터링 결과 내역 상세 -\n\n`;
+async function saveReport(){
+  if(!_lastResult || !_lastResult.curr_ym) return;
+  const btn = document.getElementById('btn-save-report');
+  btn.disabled = true;
+  btn.textContent = '저장 중…';
+  try{
+    const resp = await fetch('/save-report', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ym: _lastResult.curr_ym, result: _lastResult})
+    });
+    const d = await resp.json();
+    if(!resp.ok){ alert(d.error || '저장 실패'); btn.disabled=false; btn.textContent='💾 저장'; return; }
+    btn.textContent = '✓ 저장됨';
+    btn.style.background = '#27ae60';
+    btn.style.color = '#fff';
+    btn.style.borderColor = '#27ae60';
+    setTimeout(()=>{
+      btn.textContent='💾 저장'; btn.disabled=false;
+      btn.style.background=''; btn.style.color=''; btn.style.borderColor='';
+    }, 2500);
+    const hr = await fetch('/history');
+    const hd = await hr.json();
+    renderHistPanel(hd.history);
+  }catch(e){ alert(String(e)); btn.disabled=false; btn.textContent='💾 저장'; }
+}
 
-  cats.forEach((c, idx) => {
-    txt += `${idx + 1}. ${c.cat} : ${c.curr}명 (전월 ${c.prev}명 → 당월 ${c.curr}명, ${c.diff >= 0 ? '+' : ''}${c.diff})\n`;
-    txt += `   계산식: ${c.prev} - ${c.removed.length}(삭제) + ${c.added.length}(추가) = ${c.curr}\n`;
-    if (c.removed.length > 0) {
-      txt += `   [삭제/권한조정 ${c.removed.length}건]\n`;
-      c.removed.forEach(r => {
-        txt += `     - ${r.name} (${r.dept} / ${r.code})\n`;
+function onDrag(e,el){e.preventDefault();el.classList.add('drag')}
+function offDrag(el){el.classList.remove('drag')}
+function onDrop(e,key){
+  e.preventDefault();
+  const f=e.dataTransfer.files[0];
+  if(f){files[key]=f;document.getElementById('name-'+key).textContent=f.name;if(key==='prev')clearHistBadge();check()}
+  document.getElementById('zone-'+key).classList.remove('drag');
+}
+function onFile(key){
+  const inp=document.getElementById('file-'+key);
+  if(inp.files[0]){files[key]=inp.files[0];document.getElementById('name-'+key).textContent=inp.files[0].name;if(key==='prev')clearHistBadge();check()}
+}
+function clearHistBadge(){
+  document.getElementById('hist-badge-wrap').style.display='none';
+  latestHist=null;
+}
+function check(){
+  // 당월 있으면 OK (전월은 히스토리로 대체 가능)
+  document.getElementById('btn-run').disabled=!(files.curr&&(files.prev||latestHist));
+}
+
+async function runAnalysis(){
+  document.getElementById('err-box').style.display='none';
+  document.getElementById('result-area').style.display='none';
+  document.getElementById('spinner').style.display='block';
+  document.getElementById('btn-run').disabled=true;
+  const fd=new FormData();
+  fd.append('file_curr',files.curr);
+  if(files.prev) fd.append('file_prev',files.prev); // 없으면 서버가 히스토리 자동 로드
+  try{
+    const resp=await fetch('/run',{method:'POST',body:fd});
+    const data=await resp.json();
+    if(!resp.ok){showErr(data.error||'오류');return}
+    // 히스토리 패널 갱신
+    const hr=await fetch('/history');
+    const hd=await hr.json();
+    latestHist=hd.latest;
+    renderHistPanel(hd.history);
+    renderResult(data);
+  }catch(e){
+    const m=String(e);
+    if(m.includes('Failed to fetch')||m.includes('NetworkError')||m.includes('fetch')){
+      showErr('서버에 연결할 수 없습니다. EXE 프로그램이 실행 중인지 확인하고 브라우저를 새로고침(F5)해 주세요.');
+    } else { showErr(m); }
+  }
+  finally{document.getElementById('spinner').style.display='none';document.getElementById('btn-run').disabled=false}
+}
+
+function showErr(msg){
+  const b=document.getElementById('err-box');
+  b.innerHTML='';
+  b.style.background='';b.style.color='';b.style.padding='';
+  b.textContent='오류: '+msg;
+  b.style.display='block';
+}
+
+/* ── 비고 셀 클릭 복사 */
+function copyBigo(el){
+  const v=el.dataset.val;
+  if(!v)return;
+  navigator.clipboard.writeText(v).then(()=>{
+    const saved=el.innerHTML;
+    el.innerHTML='<span class="copied-label">✓ 복사됨</span>';
+    el.classList.add('flash');
+    setTimeout(()=>{el.innerHTML=saved;el.classList.remove('flash')},900);
+  });
+}
+
+/* ── 숫자 셀 클릭 복사 */
+function copyNum(el){
+  const v=el.dataset.val;
+  if(!v)return;
+  navigator.clipboard.writeText(v).then(()=>{
+    const saved=el.innerHTML;
+    el.innerHTML='<span class="copied-label">✓ 복사됨</span>';
+    el.classList.add('flash');
+    setTimeout(()=>{el.innerHTML=saved;el.classList.remove('flash')},900);
+  });
+}
+
+/* ── 이름 기준 그룹화 */
+function groupByName(items){
+  const map={};
+  items.forEach(r=>{
+    if(!map[r.name]) map[r.name]={name:r.name, dept:r.dept, rank:r.rank||'', codes:[]};
+    map[r.name].codes.push(r.code);
+  });
+  return Object.values(map);
+}
+
+/* ── 전체 복사 (특이사항 + 상세내역) */
+function buildCopyText(d, specialTxt){
+  let t = specialTxt + '\n\n';
+  t += '- 부여현황 모니터링 결과 내역 상세 -\n\n';
+  d.cats.forEach((c,idx)=>{
+    const nm = CAT_DISPLAY[c.cat]||c.cat;
+    t += `${idx+1}. ${nm}  :  ${c.curr}\n`;
+    if(!c.removed.length && !c.added.length){
+      t += '─ 변동 없음\n';
+    } else {
+      if(c.removed.length){
+        t += `\n[삭제 / 권한조정 ${c.removed.length}건]\n`;
+        groupByName(c.removed).forEach((r,idx)=>{
+          const cntTxt = r.codes.length>1 ? `${r.codes.length}건 / ` : '';
+          const rankTxt = r.rank ? ` ${r.rank}` : '';
+          t+=`${idx+1}) ${r.name}${rankTxt} (${r.dept} / ${cntTxt}${r.codes.join(', ')})\n`;
+        });
+      }
+      if(c.added.length){
+        t += `\n[신규 추가 ${c.added.length}건]\n`;
+        groupByName(c.added).forEach((r,idx)=>{
+          const cntTxt = r.codes.length>1 ? `${r.codes.length}건 / ` : '';
+          const rankTxt = r.rank ? ` ${r.rank}` : '';
+          t+=`${idx+1}) ${r.name}${rankTxt} (${r.dept} / ${cntTxt}${r.codes.join(', ')})\n`;
+        });
+      }
+    }
+    t += '\n';
+  });
+  t += '끝.';
+  return t;
+}
+
+async function saveSpecialTemplate(){
+  const el       = document.getElementById('special-body');
+  const miscHdrEl= document.getElementById('cat-misc-hdr');
+  const miscBdEl = document.getElementById('cat-misc-body');
+  if(!el) return;
+  const btn = document.getElementById('btn-save-spc');
+  btn.disabled = true; btn.textContent = '저장 중…';
+  try{
+    const resp = await fetch('/api/special-template',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        special:   el.value,
+        misc_hdr:  miscHdrEl ? miscHdrEl.value : '',
+        misc_body: miscBdEl  ? miscBdEl.value  : '',
+        cat_memos: (()=>{
+          const m={};
+          if(_lastResult) _lastResult.cats.forEach((c,i)=>{
+            const memo=document.getElementById(`cat-memo-${i}`);
+            if(memo) m[c.cat]=memo.value;
+          });
+          return m;
+        })(),
+      })
+    });
+    const d = await resp.json();
+    if(!resp.ok){ alert(d.error||'저장 실패'); return; }
+    btn.textContent = '✓ 저장됨';
+    btn.classList.add('ok');
+    setTimeout(()=>{ btn.textContent='저장'; btn.classList.remove('ok'); btn.disabled=false; }, 1800);
+  }catch(e){ alert(String(e)); btn.disabled=false; btn.textContent='저장'; }
+}
+
+function copyAll(){
+  if(!_lastResult) return;
+  const el = document.getElementById('special-body');
+  let text = (el ? el.value : _lastSpecial) + '\n\n';
+  text += '- 부여현황 모니터링 결과 내역 상세 -\n\n';
+  _lastResult.cats.forEach((_,idx)=>{
+    const hdr  =document.getElementById(`cat-hdr-${idx}`);
+    const memo =document.getElementById(`cat-memo-${idx}`);
+    const ta   =document.getElementById(`cat-body-${idx}`);
+    if(hdr) text+=hdr.value+'\n';
+    if(memo && memo.value.trim()) text+=memo.value.trimEnd()+'\n';
+    if(ta)  text+=ta.value.trimEnd()+'\n\n';
+  });
+  const miscHdr=document.getElementById('cat-misc-hdr');
+  const miscBd =document.getElementById('cat-misc-body');
+  if(miscHdr) text+=miscHdr.value+'\n';
+  if(miscBd)  text+=miscBd.value.trimEnd()+'\n\n';
+  text+='끝.';
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn = document.getElementById('btn-copy-all');
+    btn.textContent = '✓ 복사됨';
+    btn.classList.add('ok');
+    setTimeout(()=>{ btn.textContent='전체 복사'; btn.classList.remove('ok'); }, 1800);
+  });
+}
+
+function ymDisplay(ym){
+  if(!ym) return '?';
+  const p=ym.split('_');
+  return p.length===2?`${p[0]}년 ${p[1]}월`:ym;
+}
+
+const CAT_DISPLAY={
+  '본사':'본사',
+  '건설(본사)':'건설/산업.환경플랜트(본사)',
+  '건설(현장)':'건설/산업.환경플랜트(현장)',
+  '회전기사업본부':'회전기사업본부',
+};
+
+function numCell(val){
+  return `<td class="num-cp" data-val="${val}" onclick="copyNum(this)" title="클릭하여 복사">${val}</td>`;
+}
+
+async function loadHistResult(ym){
+  document.getElementById('err-box').style.display='none';
+  document.getElementById('result-area').style.display='none';
+  document.getElementById('spinner').style.display='block';
+  try{
+    const resp=await fetch(`/run-history/${ym}`);
+    let data;
+    try{ data=await resp.json(); }catch(je){
+      showErr('서버 응답 파싱 실패. 서버가 실행 중인지 확인해 주세요.');
+      return;
+    }
+    if(!resp.ok){showErr(data.error||'오류');return;}
+    renderResult(data);
+  }catch(e){
+    const msg=String(e);
+    if(msg.includes('Failed to fetch')||msg.includes('NetworkError')||msg.includes('fetch')){
+      showServerErr(ym);
+    }else{
+      showErr(msg);
+    }
+  }finally{document.getElementById('spinner').style.display='none';}
+}
+
+function showServerErr(ym){
+  const b=document.getElementById('err-box');
+  b.innerHTML=`<div class="server-err">
+    <span>⚠️</span>
+    <span><b>서버 연결 실패</b> — 앱이 꺼졌거나 재시작됐을 수 있습니다. EXE를 다시 실행한 후 시도해 주세요.</span>
+    <button class="btn-retry" onclick="loadHistResult('${ym}')">재시도</button>
+  </div>`;
+  b.style.display='block';
+  b.style.background='none';
+  b.style.color='inherit';
+  b.style.padding='0';
+}
+
+async function renderResult(d){
+  // 당월 파일 기준 연월
+  const parts=(d.curr_ym||'').split('_');
+  const yy   = parts.length===2 ? parseInt(parts[0]) : new Date().getFullYear();
+  const mmNum= parts.length===2 ? parseInt(parts[1]) : new Date().getMonth()+1;
+  const mm   = String(mmNum).padStart(2,'0');
+  const y2   = String(yy).slice(2);
+  const lastDay = new Date(yy, mmNum, 0).getDate();
+
+  // 다운로드 버튼: summary_only 또는 no_download이면 숨김
+  const dlBtn = document.getElementById('btn-download');
+  if(dlBtn) dlBtn.style.display = (d.summary_only || d.no_download) ? 'none' : '';
+
+  // 저장 버튼: summary_only(숫자만)이면 숨김, 그 외 모두 표시
+  const saveBtn = document.getElementById('btn-save-report');
+  if(saveBtn){
+    saveBtn.style.display = d.summary_only ? 'none' : '';
+    saveBtn.textContent = '💾 저장';
+    saveBtn.disabled = false;
+    saveBtn.style.background = '';
+    saveBtn.style.color = '';
+    saveBtn.style.borderColor = '';
+  }
+
+  /* 통계 바 */
+  document.getElementById('stat-bar').innerHTML=d.cats.map(c=>{
+    const diff=c.diff,cls=diff>0?'pos':diff<0?'neg':'zero',sign=diff>0?'+':'';
+    return `<div class="stat-card">
+      <div class="sc-label">${CAT_DISPLAY[c.cat]||c.cat}</div>
+      <div class="sc-val">${c.curr}</div>
+      <div class="sc-diff ${cls}">${sign}${diff} (전월 ${c.prev})</div>
+    </div>`;
+  }).join('');
+  document.getElementById('result-summary').textContent=
+    `전월 총 ${d.prev_total}명 → 당월 총 ${d.curr_total}명 (건설본부 기준)`;
+
+  const prevDisp = ymDisplay(d.prev_ym);
+  const currDisp = ymDisplay(d.curr_ym);
+  const histNote = d.from_hist ? ' 💾' : '';
+  document.getElementById('compare-badge-wrap').innerHTML=
+    `<span class="compare-badge"><b>${prevDisp}</b> → <b>${currDisp}</b>${histNote}</span>`;
+
+  /* ── 기안지 HTML */
+  let h=`<div class="gian-doc">`;
+
+  /* 제목 */
+  h+=`<div class="gian-title-bar">
+    <div class="gian-main-title">TOCAPS 건설 권한 보유현황 모니터링</div>
+    <div class="gian-sub-line">□ 모니터링 년 월 : ${yy} 년 ${mmNum} 월</div>
+  </div>`;
+
+  /* ── 권한그룹 내역 */
+  h+=`<div class="gian-sec-hdr">□ 권한그룹 내역</div>
+  <table class="gian-tbl">
+    <colgroup>
+      <col style="width:22%"><col style="width:20%">
+      <col style="width:14%"><col style="width:14%"><col style="width:30%">
+    </colgroup>
+    <thead><tr>
+      <th>권한그룹 구분</th>
+      <th>전체 권한그룹<br><span style="font-weight:400;font-size:7.5pt">(전월 → 당월)</span></th>
+      <th>신규권한그룹</th>
+      <th>삭제권한그룹</th>
+      <th>비고(사유)</th>
+    </tr></thead>
+    <tbody>`;
+
+  d.cats.forEach(c=>{
+    const nm=CAT_DISPLAY[c.cat]||c.cat;
+    const addDetail  = c.added_grps_detail  || c.added_grps.map(g=>({code:g,grp:''}));
+    const delDetail  = c.removed_grps_detail || c.removed_grps.map(g=>({code:g,grp:''}));
+    const newCnt=addDetail.length;
+    const delCnt=delDetail.length;
+
+    const fmtGrp = g => g.grp ? `${g.code}<span class="grp-name-lbl"> (${g.grp})</span>` : g.code;
+    const fmtGrpPlain = g => g.grp ? `${g.code} (${g.grp})` : g.code;
+    const newG=addDetail.map(fmtGrp).join('<br>');
+    const delG=delDetail.map(fmtGrp).join('<br>');
+
+    // 전체권한그룹 셀: 당월수(클릭복사) + 전월수 작은 표기
+    const totCell=`<td class="grp-tot-td">
+      <span class="num-cp" data-val="${c.curr_grp_cnt}" onclick="copyNum(this)" title="클릭하여 복사">${c.curr_grp_cnt}</span>
+      <span class="prev-grp-lbl">전월 ${c.prev_grp_cnt}</span>
+    </td>`;
+
+    // 신규 셀
+    const newCell=newCnt
+      ?`<td class="grp-chg-td">
+          <span class="grp-chg-cnt" data-val="${newCnt}" onclick="copyNum(this)" title="클릭하여 복사">${newCnt}</span>
+          <div class="grp-chg-codes">${newG}</div>
+        </td>`
+      :`<td class="grp-chg-td"><span class="grp-chg-none">─</span></td>`;
+
+    // 삭제 셀
+    const delCell=delCnt
+      ?`<td class="grp-chg-td">
+          <span class="grp-chg-cnt" data-val="${delCnt}" onclick="copyNum(this)" title="클릭하여 복사">${delCnt}</span>
+          <div class="grp-chg-codes">${delG}</div>
+        </td>`
+      :`<td class="grp-chg-td"><span class="grp-chg-none">─</span></td>`;
+
+    // 비고: 코드 (그룹명) 병행표기 + 클릭 복사
+    let bigo, bigoTxt;
+    if(!newCnt&&!delCnt){
+      bigoTxt = '*변동사항 없음';
+      bigo=`<span class="bigo-none">*변동사항 없음</span>`;
+    } else {
+      const parts=[], plainParts=[];
+      if(newCnt){
+        parts.push(`추가: ${addDetail.map(fmtGrp).join(', ')}`);
+        plainParts.push(`추가: ${addDetail.map(fmtGrpPlain).join(', ')}`);
+      }
+      if(delCnt){
+        parts.push(`삭제: ${delDetail.map(fmtGrp).join(', ')}`);
+        plainParts.push(`삭제: ${delDetail.map(fmtGrpPlain).join(', ')}`);
+      }
+      bigoTxt = plainParts.join(' / ');
+      bigo=`<span class="bigo-chg">${parts.join('<br>')}</span>`;
+    }
+
+    h+=`<tr>
+      <td>${nm}</td>
+      ${totCell}
+      ${newCell}
+      ${delCell}
+      <td class="bigo-cp" data-val="${bigoTxt.replace(/"/g,'&quot;')}" onclick="copyBigo(this)" title="클릭하여 복사">${bigo}</td>
+    </tr>`;
+  });
+  h+=`</tbody></table>`;
+
+  /* ── 부여현황 모니터링 결과 */
+  h+=`<div class="gian-sec-hdr">□ 부여현황 모니터링 결과</div>
+  <table class="gian-tbl">
+    <colgroup>
+      <col style="width:10%"><col style="width:28%">
+      <col style="width:20%"><col style="width:20%"><col style="width:22%">
+    </colgroup>
+    <thead><tr>
+      <th>시스템</th>
+      <th>구분</th>
+      <th>전체 권한부여 인원</th>
+      <th>적정 권한부여 인원</th>
+      <th>권한 조정필요</th>
+    </tr></thead>
+    <tbody>`;
+
+  d.cats.forEach((c,idx)=>{
+    const sysCell = idx===0
+      ? `<td style="text-align:center;vertical-align:middle" rowspan="${d.cats.length}">TOCAPS</td>`
+      : '';
+    h+=`<tr>
+      ${sysCell}
+      <td>${CAT_DISPLAY[c.cat]||c.cat}</td>
+      ${numCell(c.curr)}
+      ${numCell(c.curr)}
+      <td style="text-align:center"></td>
+    </tr>`;
+  });
+  h+=`</tbody></table>`;
+
+  /* ── 인원 변동 수식 도표 */
+  h+=`<div class="gian-sec-hdr" style="margin-top:20px">□ 인원 변동 수식</div>
+  <table class="gian-tbl formula-tbl">
+    <colgroup>
+      <col style="width:24%">
+      <col style="width:14%"><col style="width:4%">
+      <col style="width:14%"><col style="width:4%">
+      <col style="width:14%"><col style="width:4%">
+      <col style="width:14%"><col style="width:8%">
+    </colgroup>
+    <thead><tr>
+      <th>구분</th>
+      <th>전월</th><th></th>
+      <th>삭제</th><th></th>
+      <th>신규</th><th></th>
+      <th>당월</th><th>검증</th>
+    </tr></thead>
+    <tbody>`;
+  d.cats.forEach(c=>{
+    const nm  = CAT_DISPLAY[c.cat]||c.cat;
+    const del = c.removed.length;
+    const add = c.added.length;
+    const ok  = c.check;
+    const chk = ok
+      ? `<span style="color:#27ae60;font-size:13pt;font-weight:900">✓</span>`
+      : `<span style="color:#c62828;font-size:13pt;font-weight:900">✗</span>`;
+    h+=`<tr>
+      <td style="font-weight:600">${nm}</td>
+      <td class="fml-num">${c.prev}</td>
+      <td class="fml-op">−</td>
+      <td class="fml-num ${del>0?'fml-del':''}">${del}</td>
+      <td class="fml-op">+</td>
+      <td class="fml-num ${add>0?'fml-add':''}">${add}</td>
+      <td class="fml-op">=</td>
+      <td class="fml-num fml-result">${c.curr}</td>
+      <td style="text-align:center">${chk}</td>
+    </tr>`;
+  });
+  h+=`</tbody></table>`;
+
+  /* ── 특이사항 + 상세내역 (합산 섹션) */
+  const defaultPeriodLine = `*모니터링 기간 : ${y2}.${mm}.01 ~ ${y2}.${mm}.${String(lastDay).padStart(2,'0')}`;
+  const defaultSpecial = `${defaultPeriodLine}\n*상세 사항은 첨부의 엑셀 자료에서 확인 가능\n*2025.06 부로 '인사명부'의 '건설' 소속들을 기준으로 재정립\n(일부 인원 임의 첨부 중)`;
+
+  let specialTxt = defaultSpecial;
+  let savedMiscHdr = '';
+  let savedMiscBody = '';
+  let savedCatMemos = {};
+  try{
+    const tr = await fetch('/api/special-template');
+    const td = await tr.json();
+    if(td.special && td.special.trim()){
+      const lines = td.special.split('\n');
+      specialTxt = lines.map(l => l.startsWith('*모니터링 기간') ? defaultPeriodLine : l).join('\n');
+    }
+    if(td.misc_hdr)  savedMiscHdr  = td.misc_hdr;
+    if(td.misc_body) savedMiscBody = td.misc_body;
+    if(td.cat_memos) savedCatMemos = td.cat_memos;
+  }catch(e){}
+
+  _lastResult = d;
+  _lastSpecial = specialTxt;
+
+  h+=`<div class="gian-sec-hdr-row">
+    <span>□ 특이사항 (권한부여에 대한 특이사항 확인서 조치사항 기재 必)</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn-save-spc" id="btn-save-spc" onclick="saveSpecialTemplate()">저장</button>
+      <button class="btn-copy-all" id="btn-copy-all" onclick="copyAll()">전체 복사</button>
+    </div>
+  </div>
+  <div class="gian-special-wrap">
+    <textarea class="gian-special" id="special-body">${specialTxt}</textarea>
+    <div class="gian-detail-label">- 부여현황 모니터링 결과 내역 상세 -</div>
+  </div>`;
+
+  d.cats.forEach((c,idx)=>{
+    const nm=CAT_DISPLAY[c.cat]||c.cat;
+    const hdrTxt=`${idx+1}. ${nm}  :  ${c.curr}`;
+    let catTxt='';
+    if(c.removed.length||c.added.length){
+      if(c.removed.length){
+        catTxt+=`[삭제 / 권한조정 ${c.removed.length}건]\n`;
+        groupByName(c.removed).forEach((r,i)=>{
+          const cntTxt=r.codes.length>1?`${r.codes.length}건 / `:'';
+          const rankTxt=r.rank?` ${r.rank}`:'';
+          catTxt+=`${i+1}) ${r.name}${rankTxt} (${r.dept} / ${cntTxt}${r.codes.join(', ')})\n`;
+        });
+      }
+      if(c.added.length){
+        catTxt+=`\n[신규 추가 ${c.added.length}건]\n`;
+        groupByName(c.added).forEach((r,i)=>{
+          const cntTxt=r.codes.length>1?`${r.codes.length}건 / `:'';
+          const rankTxt=r.rank?` ${r.rank}`:'';
+          catTxt+=`${i+1}) ${r.name}${rankTxt} (${r.dept} / ${cntTxt}${r.codes.join(', ')})\n`;
+        });
+      }
+    }
+    const rows=Math.max(4, catTxt.split('\n').length+1);
+    const savedMemo=savedCatMemos[c.cat]||'';
+    h+=`<div class="gian-cat-block">
+      <input class="gian-cat-hdr-input" id="cat-hdr-${idx}" value="${_escH(hdrTxt)}">
+      <div class="gian-cat-memo-wrap">
+        <div class="gian-cat-memo-lbl">✎ 메모 (이월)</div>
+        <textarea class="gian-cat-memo" id="cat-memo-${idx}" rows="2">${_escTA(savedMemo)}</textarea>
+      </div>
+      <textarea class="gian-cat-textarea" id="cat-body-${idx}" rows="${rows}">${_escTA(catTxt)}</textarea>
+    </div>`;
+  });
+
+  const miscNum=d.cats.length+1;
+  const defMiscHdr=savedMiscHdr||`${miscNum}. 기타사항`;
+  h+=`<div class="gian-cat-block gian-cat-misc">
+    <input class="gian-cat-hdr-input gian-cat-hdr-misc" id="cat-misc-hdr" value="${_escH(defMiscHdr)}" placeholder="5. 기타사항">
+    <textarea class="gian-cat-textarea" id="cat-misc-body" rows="5">${_escTA(savedMiscBody)}</textarea>
+  </div>`;
+  h+=`<div class="gian-end">끝.</div></div>`;
+
+  document.getElementById('report-area').innerHTML=h;
+  renderMissingAlert(d.missing_from_dir||[]);
+  document.getElementById('result-area').style.display='block';
+  document.getElementById('result-area').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* ── 인원명부 알림 렌더 */
+function renderMissingAlert(missing){
+  const wrap=document.getElementById('dir-alert-wrap');
+  if(!missing||!missing.length){wrap.innerHTML='';return;}
+  _missingFromDir=missing;
+  const list=missing.map(m=>`<span style="display:inline-block;margin-right:12px">▪ ${m.name} (${m.emp_id} · ${m.dept})</span>`).join('');
+  wrap.innerHTML=`<div class="dir-alert">
+    <div class="dir-alert-icon">⚠️</div>
+    <div class="dir-alert-body">
+      <div class="dir-alert-title">인원명부 미등록 ${missing.length}명 — 당월 건설 직원 중 직원명부에 없는 사람이 있습니다</div>
+      <div class="dir-alert-list">${list}</div>
+      <button class="btn-dir-alert" onclick="openDirModal(_missingFromDir)">직원명부에 추가하기 ›</button>
+    </div>
+  </div>`;
+}
+
+/* ── 인원명부 설정 모달 */
+let _dirRows=[];   // [{emp_id,name,bonbu,dept,rank,_new}]
+let _dirFilter='전체';
+
+function _escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function _escTA(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function openDirModal(prefill){
+  _dirFilter='전체';
+  _dirRows=[];
+  try{ renderDirTable(); }catch(e){ console.error('renderDirTable 오류:',e); }
+  document.getElementById('dir-modal').classList.add('open');
+  try{
+    const resp=await fetch('/api/directory');
+    const d=await resp.json();
+    _dirRows=d.rows.map(r=>({...r,_new:false}));
+    if(prefill&&prefill.length){
+      prefill.forEach(m=>{
+        if(!_dirRows.find(r=>r.emp_id===m.emp_id)){
+          _dirRows.push({emp_id:m.emp_id,name:m.name,bonbu:'건설',dept:m.dept,rank:'',_new:true});
+        }
       });
     }
-    if (c.added.length > 0) {
-      txt += `   [신규추가 ${c.added.length}건]\n`;
-      c.added.forEach(r => {
-        txt += `     + ${r.name} (${r.dept} / ${r.code})\n`;
-      });
-    }
-    txt += '\n';
-  });
-
-  txt += `합계 검산: 전월 ${prevTotal}명 - ${totalRm}건 + ${totalAd}건 = ${prevTotal - totalRm + totalAd}명 (실제 당월: ${currTotal}명)\n\n`;
-  txt += `끝.`;
-  return txt;
+  }catch(e){
+    console.error('인원명부 로드 오류:',e);
+    _dirRows=[];
+  }
+  try{ renderDirTable(); }catch(e){ console.error('renderDirTable 오류:',e); }
 }
 
-function copyReport() {
-  const text = document.getElementById('reportText').textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const ok = document.getElementById('copyOk');
-    ok.style.display = 'block';
-    setTimeout(() => { ok.style.display = 'none'; }, 2000);
+function closeDirModal(){document.getElementById('dir-modal').classList.remove('open');}
+
+function setDirFilter(v){_dirFilter=v;renderDirTable();}
+
+function renderDirTable(){
+  const BONBU=['건설','건재','플랜트','기타'];
+  const RANK=['','사원','대리','과장','차장','부장','상무','전무','사장'];
+
+  /* 필터 버튼 갱신 */
+  const cnt={'전체':_dirRows.length};
+  BONBU.forEach(b=>{cnt[b]=_dirRows.filter(r=>r.bonbu===b).length;});
+  const fb=document.getElementById('dir-filter-bar');
+  if(fb) fb.innerHTML=['전체',...BONBU].map(v=>
+    `<button class="dir-filter-btn${v===_dirFilter?' active':''}" onclick="setDirFilter('${v}')">${v}<span class="dir-filter-cnt">${cnt[v]||0}</span></button>`
+  ).join('');
+
+  /* 테이블 렌더 (실제 인덱스 i 유지) */
+  let rows=''; let shown=0;
+  _dirRows.forEach((r,i)=>{
+    if(_dirFilter!=='전체'&&r.bonbu!==_dirFilter) return;
+    shown++;
+    const bSel=BONBU.map(b=>`<option value="${b}"${b===r.bonbu?' selected':''}>${b}</option>`).join('');
+    const rSel=RANK.map(v=>`<option value="${v}"${v===(r.rank||'')?' selected':''}>${v||'(없음)'}</option>`).join('');
+    rows+=`<tr${r._new?' class="new-entry"':''}>
+      <td style="text-align:center;color:#888;font-size:.78rem">${shown}</td>
+      <td><input class="dir-inp" value="${_escH(r.emp_id)}" placeholder="사번" oninput="dirUpd(${i},'emp_id',this.value)" style="width:76px"></td>
+      <td><input class="dir-inp" value="${_escH(r.name)}" placeholder="성명" oninput="dirUpd(${i},'name',this.value)" style="width:68px"></td>
+      <td><select class="dir-sel" onchange="dirUpd(${i},'bonbu',this.value)" style="width:68px">${bSel}</select></td>
+      <td><input class="dir-inp" value="${_escH(r.dept)}" placeholder="부서" oninput="dirUpd(${i},'dept',this.value)"></td>
+      <td><select class="dir-sel" onchange="dirUpd(${i},'rank',this.value)" style="width:66px">${rSel}</select></td>
+      <td><button class="dir-del" onclick="dirDel(${i})" title="삭제">✕</button></td>
+    </tr>`;
   });
+  document.getElementById('dir-tbody').innerHTML=rows;
+  document.getElementById('dir-count').textContent=
+    _dirFilter==='전체' ? `${_dirRows.length}` : `${shown} / ${_dirRows.length}`;
+}
+
+function dirUpd(i,field,val){_dirRows[i][field]=val;}
+
+function dirDel(i){_dirRows.splice(i,1);renderDirTable();}
+
+function dirAddRow(){
+  const defaultBonbu=_dirFilter!=='전체'?_dirFilter:'건설';
+  _dirRows.push({emp_id:'',name:'',bonbu:defaultBonbu,dept:'',rank:'',_new:true});
+  renderDirTable();
+  const mb=document.querySelector('#dir-modal .modal-body');
+  if(mb) mb.scrollTop=mb.scrollHeight;
+}
+
+async function saveDirModal(){
+  const btn=document.getElementById('dir-save-btn');
+  btn.disabled=true;btn.textContent='저장 중…';
+  try{
+    const rows=_dirRows.filter(r=>r.emp_id).map(({emp_id,name,bonbu,dept,rank})=>({emp_id,name,bonbu,dept,rank:rank||''}));
+    const resp=await fetch('/api/directory',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({rows})
+    });
+    const d=await resp.json();
+    if(!resp.ok){alert(d.error||'저장 실패');return;}
+    btn.textContent=`✓ 저장됨 (${d.count}명)`;
+    setTimeout(()=>{btn.textContent='저장';btn.disabled=false;},1500);
+  }catch(e){alert(String(e));btn.disabled=false;btn.textContent='저장';}
+}
+
+/* ── 부서 분류 설정 모달 */
+let _dmapData = {};   // {dept: cat}
+const CAT_OPTIONS = ['본사','건설(본사)','건설(현장)','회전기사업본부'];
+
+async function openDeptMapModal(){
+  const resp = await fetch('/dept-cat-map');
+  const d    = await resp.json();
+  _dmapData  = Object.assign({}, d.map);
+  renderDmapTable();
+  document.getElementById('dmap-modal').classList.add('open');
+}
+function closeDeptMapModal(){
+  document.getElementById('dmap-modal').classList.remove('open');
+}
+
+function renderDmapTable(){
+  const catSel = cat => CAT_OPTIONS.map(c=>
+    `<option value="${c}"${c===cat?' selected':''}>${c}</option>`).join('');
+  let rows = '';
+  const sorted = Object.keys(_dmapData).sort((a,b)=>a.localeCompare(b,'ko'));
+  sorted.forEach(dept=>{
+    const cat = _dmapData[dept];
+    rows += `<tr data-dept="${dept.replace(/"/g,'&quot;')}">
+      <td><span class="dmap-dept-lbl">${dept}</span></td>
+      <td><select class="dmap-sel" onchange="dmapChange(this)">${catSel(cat)}</select></td>
+      <td><button class="dmap-del" onclick="dmapDel(this)" title="삭제">✕</button></td>
+    </tr>`;
+  });
+  document.getElementById('dmap-tbody').innerHTML = rows;
+  document.getElementById('dmap-count').textContent = sorted.length;
+}
+
+function dmapChange(sel){
+  const dept = sel.closest('tr').dataset.dept;
+  _dmapData[dept] = sel.value;
+}
+function dmapDel(btn){
+  const dept = btn.closest('tr').dataset.dept;
+  delete _dmapData[dept];
+  renderDmapTable();
+}
+function dmapAddRow(){
+  const dept = document.getElementById('dmap-new-dept').value.trim();
+  const cat  = document.getElementById('dmap-new-cat').value;
+  if(!dept){ alert('부서명을 입력하세요'); return; }
+  _dmapData[dept] = cat;
+  document.getElementById('dmap-new-dept').value = '';
+  renderDmapTable();
+}
+async function saveDeptMap(){
+  const btn = document.querySelector('.btn-save-map');
+  btn.disabled = true; btn.textContent = '저장 중…';
+  try{
+    const resp = await fetch('/dept-cat-map',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({map: _dmapData})
+    });
+    const d = await resp.json();
+    if(!resp.ok){ alert(d.error||'저장 실패'); return; }
+    btn.textContent = `✓ 저장됨 (${d.count}개)`;
+    setTimeout(()=>{ btn.textContent='저장'; btn.disabled=false; }, 1500);
+    closeDeptMapModal();
+  }catch(e){ alert(String(e)); btn.disabled=false; btn.textContent='저장'; }
 }
 </script>
+
+<!-- 인원명부 설정 모달 -->
+<div class="modal-bg" id="dir-modal" onclick="if(event.target===this)closeDirModal()">
+  <div class="modal-box" style="width:min(820px,96vw)">
+    <div class="modal-hdr">
+      <h3>👥 인원명부 설정 &nbsp;<span id="dir-count" style="font-size:.78rem;font-weight:400;color:#888">0</span>명 등록</h3>
+      <button class="modal-close" onclick="closeDirModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="map-note" style="margin-bottom:8px">직원명부에 등록된 사람만 건설본부 분석 대상에 포함됩니다. 노란 행은 당월 신규 감지된 미등록 인원입니다.</p>
+      <div class="dir-filter-bar" id="dir-filter-bar"></div>
+      <table class="dir-tbl">
+        <thead>
+          <tr>
+            <th style="width:32px">No</th>
+            <th style="width:78px">사번</th>
+            <th style="width:70px">성명</th>
+            <th style="width:70px">본부</th>
+            <th>부서</th>
+            <th style="width:70px">직급</th>
+            <th style="width:32px"></th>
+          </tr>
+        </thead>
+        <tbody id="dir-tbody"></tbody>
+      </table>
+      <div class="dir-add-bar">
+        <button class="btn-add-dir" onclick="dirAddRow()">+ 행 추가</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel-map" onclick="closeDirModal()">취소</button>
+      <button class="btn-save-map" id="dir-save-btn" onclick="saveDirModal()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 부서 분류 설정 모달 -->
+<div class="modal-bg" id="dmap-modal" onclick="if(event.target===this)closeDeptMapModal()">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <h3>⚙ 부서 분류 설정 &nbsp;<span id="dmap-count" style="font-size:.78rem;font-weight:400;color:#888">0</span>개 등록</h3>
+      <button class="modal-close" onclick="closeDeptMapModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="map-note">소속부서명(H열) → 권한그룹 구분(U열) 매핑. 여기 등록된 부서는 기준 파일을 우선 적용하고, 등록되지 않은 부서는 자동 패턴 분류를 사용합니다.</p>
+      <table class="dmap-tbl">
+        <thead><tr><th>소속부서명</th><th>권한그룹 구분</th><th></th></tr></thead>
+        <tbody id="dmap-tbody"></tbody>
+        <tfoot>
+          <tr class="dmap-add-row">
+            <td><input class="dmap-dept" id="dmap-new-dept" placeholder="새 부서명 입력" onkeydown="if(event.key==='Enter')dmapAddRow()"></td>
+            <td><select class="dmap-sel" id="dmap-new-cat">
+              <option value="본사">본사</option>
+              <option value="건설(본사)">건설(본사)</option>
+              <option value="건설(현장)">건설(현장)</option>
+              <option value="회전기사업본부">회전기사업본부</option>
+            </select></td>
+            <td><button class="btn-add-dept" onclick="dmapAddRow()">+ 추가</button></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel-map" onclick="closeDeptMapModal()">취소</button>
+      <button class="btn-save-map" onclick="saveDeptMap()">저장</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
