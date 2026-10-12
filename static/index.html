@@ -850,9 +850,10 @@ function copyAll(){
     const hdr  =document.getElementById(`cat-hdr-${idx}`);
     const memo =document.getElementById(`cat-memo-${idx}`);
     const ta   =document.getElementById(`cat-body-${idx}`);
-    if(hdr) text+=hdr.value+'\n';
+    if(hdr) text+=hdr.value+'\n\n';
     if(memo && memo.value.trim()) text+=memo.value.trimEnd()+'\n\n';
-    if(ta)  text+=(memo && memo.value.trim() ? ta.value.trimStart() : ta.value).trimEnd()+'\n\n';
+    const body=ta ? ta.value.trim() : '';
+    text+=body ? body+'\n\n\n' : '\n';
   });
   const miscHdr=document.getElementById('cat-misc-hdr');
   const miscBd =document.getElementById('cat-misc-body');
